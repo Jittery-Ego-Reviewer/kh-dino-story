@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>發音練習遊戲 (/k-/ & /kh-/)</title>
+    <title>卡音練習遊戲</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body, html {
@@ -129,22 +129,10 @@
     </div>
 
 <script>
-    // --- 語音治療詞彙庫 ---
-    const kWords = [
-        "🦒長頸鹿", "🐻‍❄️北極熊", "🦄獨角獸", "🐔雞", "🐣雞仔", "🪳曱甴", "🪲甲蟲", "🤺劍擊", "🦾機械", "🦿機械", 
-        "👸公主", "👮警察", "👷建築工人", "🏋️舉重", "🤸打筋斗", "🎀蝴蝶結", "🛒購物車", "👠高跟鞋", "💄唇膏", "💍鑽石戒指", 
-        "🎮打機", "🧸公仔", "🎧耳機", "🥁打鼓", "🎹鋼琴", "🎸結他", "🔭望遠鏡", "📱手機", "⌨️鍵盤", "📷相機", 
-        "📺電視機", "📎萬字夾", "📏間尺", "✂️鉸剪", "🏌️打哥爾夫球", "🚑救護車", "🍗雞腿", "🍰蛋糕", "🍦雪糕", "🍫朱古力", 
-        "🫚姜", "✈️飛機", "🪂降落傘", "🚦交通燈", "🛟救生圈", "🥚雞蛋"
-    ];
-
+    // --- 語音治療詞彙庫 (只保留 khWords) ---
     const khWords = [
         "🎹鋼琴", "🐳鯨魚", "🐧企鵝", "🏇騎馬", "🏌️打哥爾夫球", "⛹️打籃球", "🚵騎單車", "👊拳頭", "🎈氣球", "⚽足球", 
-        "⚾棒球", "🏀籃球", "🎳保齡球", "🏓乒乓球", "🏸羽毛球", "🌍地球", "🥝奇異果", "🚩旗", "🍪曲奇餅"
-    ];
-
-    const otherWords = [
-        "🥑牛油果", "🦛河馬", "🐖豬", "🐘大象", "🐊鱷魚", "🐢烏龜", "🐬海豚", "🦚孔雀", "🦉貓頭鷹", "🦋蝴蝶", "💃跳舞", "🎢過山車", "🛝滑梯", "💣炸彈", "🗑️垃圾桶", "🍓士多啤梨", "🧅洋葱", "🚽廁所"
+        "⚾棒球", "🏀籃球", "🎳保齡球", "🏓乒乓球", "🏸羽毛球", "🌍地球", "🥝奇異果", "🚩旗", "🍪曲奇餅", "請求"
     ];
 
     // --- 遊戲狀態與變數 ---
@@ -276,14 +264,8 @@
     function triggerPopup() {
         gameState = 'POPUP';
         
-        // 準備詞彙：2個 /k-/, 2個 /kh-/, 1個 其他
-        let selectedK = getRandomElements(kWords, 2);
-        let selectedKh = getRandomElements(khWords, 2);
-        let selectedOther = getRandomElements(otherWords, 1);
-        
-        let allTargetWords = [...selectedK, ...selectedKh, ...selectedOther];
-        // 隨機打亂出現順序
-        allTargetWords.sort(() => Math.random() - 0.5);
+        // 準備詞彙：隨機抽取 5 個 /kh-/ 詞彙
+        let allTargetWords = getRandomElements(khWords, 5);
         
         // 繪製到 UI
         const wordListContainer = document.getElementById('word-list');
