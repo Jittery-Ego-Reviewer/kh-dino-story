@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>發音練習遊戲 (/k-/ & /kh-/)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #f0fdf4;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none; /* 防止手機瀏覽器滑動或縮放 */
+            user-select: none;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        /* 隱藏/顯示 UI 的輔助 class */
+        .hidden { display: none !important; }
+        .overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.85);
+            z-index: 10;
+        }
+        .modal {
+            background: white;
+            padding: 2rem;
+            border-radius: 1.5rem;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 90%;
+            width: 400px;
+        }
+        .emoji-btn {
+            font-size: 3rem;
+            margin: 0.5rem;
+            padding: 0.5rem;
+            border: 4px solid transparent;
+            border-radius: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #f8fafc;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        .emoji-btn:hover, .emoji-btn.selected {
+            border-color: #4ade80;
+            background: #dcfce7;
+            transform: scale(1.1);
+        }
+        .word-item {
+            font-size: 2rem;
+            margin: 0.5rem 0;
+            padding: 0.5rem;
+            background: #f0f9ff;
+            border-radius: 0.75rem;
+            color: #0369a1;
+            font-weight: bold;
+        }
+        #countdown-text {
+            font-size: 8rem;
+            font-weight: bold;
+            color: #16a34a;
+            text-shadow: 2px 4px 0px #bbf7d0;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 遊戲畫布 -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- 主選單 UI -->
+    <div id="menu-ui" class="overlay">
+        <div class="modal">
+            <h1 class="text-3xl font-bold text-green-600 mb-2">發音練習</h1>
+            <p class="text-gray-600 mb-6 text-lg">請選擇你的角色：</p>
+            <div class="flex justify-center flex-wrap mb-6">
+                <button class="emoji-btn" onclick="selectEmoji('🥚')">🥚</button>
+                <button class="emoji-btn" onclick="selectEmoji('🍗')">🍗</button>
+                <button class="emoji-btn" onclick="selectEmoji('🐤')">🐤</button>
+                <button class="emoji-btn" onclick="selectEmoji('🐣')">🐣</button>
+            </div>
+            <p class="text-xs text-gray-400 mb-4">提示：在空中再次點擊/按鍵可進行「雙重跳躍」！</p>
+            <button onclick="startGame()" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-8 rounded-xl text-2xl shadow-lg transform transition active:scale-95">
+                開始遊戲
+            </button>
+        </div>
+    </div>
+
+    <!-- 詞彙彈出視窗 UI -->
+    <div id="popup-ui" class="overlay hidden">
+        <div class="modal">
+            <h2 class="text-2xl font-bold text-purple-600 mb-4">做得好！請運用以下詞彙創作句子/故事：</h2>
+            <div id="word-list" class="flex flex-col mb-6">
+                <!-- 詞彙將透過 JS 動態插入這裡 -->
+            </div>
+            <button onclick="startCooldown()" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-8 rounded-xl text-2xl shadow-lg transform transition active:scale-95">
+                繼續
+            </button>
+        </div>
+    </div>
+
+    <!-- 倒數緩衝 UI -->
+    <div id="cooldown-ui" class="overlay hidden">
+        <div id="countdown-text">3</div>
+    </div>
+
+    <!-- 遊戲結束 UI -->
+    <div id="gameover-ui" class="overlay hidden">
+        <div class="modal">
+            <h1 class="text-4xl font-bold text-red-500 mb-4">哎呀！</h1>
+            <p class="text-xl text-gray-700 mb-6">你避開了 <span id="final-score" class="font-bold text-blue-600">0</span> 個障礙物</p>
+            <button onclick="resetGameToMenu()" class="w-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-bold py-4 px-8 rounded-xl text-2xl shadow-lg transform transition active:scale-95">
+                再玩一次
+            </button>
+        </div>
+    </div>
+
+<script>
+    // --- 語音治療詞彙庫 ---
+    const kWords = [
+        "🦒長頸鹿", "🐻‍❄️北極熊", "🦄獨角獸", "🐔雞", "🐣雞仔", "🪳曱甴", "🪲甲蟲", "🤺劍擊", "🦾機械", "🦿機械", 
+        "👸公主", "👮警察", "👷建築工人", "🏋️舉重", "🤸打筋斗", "🎀蝴蝶結", "🛒購物車", "👠高跟鞋", "💄唇膏", "💍鑽石戒指", 
+        "🎮打機", "🧸公仔", "🎧耳機", "🥁打鼓", "🎹鋼琴", "🎸結他", "🔭望遠鏡", "📱手機", "⌨️鍵盤", "📷相機", 
+        "📺電視機", "📎萬字夾", "📏間尺", "✂️鉸剪", "🏌️打哥爾夫球", "🚑救護車", "🍗雞腿", "🍰蛋糕", "🍦雪糕", "🍫朱古力", 
+        "🫚姜", "✈️飛機", "🪂降落傘", "🚦交通燈", "🛟救生圈", "🥚雞蛋"
+    ];
+
+    const khWords = [
+        "🎹鋼琴", "🐳鯨魚", "🐧企鵝", "🏇騎馬", "🏌️打哥爾夫球", "⛹️打籃球", "🚵騎單車", "👊拳頭", "🎈氣球", "⚽足球", 
+        "⚾棒球", "🏀籃球", "🎳保齡球", "🏓乒乓球", "🏸羽毛球", "🌍地球", "🥝奇異果", "🚩旗", "🍪曲奇餅"
+    ];
+
+    const otherWords = [
+        "🥑牛油果", "🦛河馬", "🐖豬", "🐘大象", "🐊鱷魚", "🐢烏龜", "🐬海豚", "🦚孔雀", "🦉貓頭鷹", "🦋蝴蝶", "💃跳舞", "🎢過山車", "🛝滑梯", "💣炸彈", "🗑️垃圾桶", "🍓士多啤梨", "🧅洋葱", "🚽廁所"
+    ];
+
+    // --- 遊戲狀態與變數 ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    let gameState = 'MENU'; // MENU, PLAYING, POPUP, COOLDOWN, GAMEOVER
+    let selectedEmoji = '🥚';
+    let animationId;
+    let audioCtx = null;
+    
+    // 遊戲物理與設定
+    let baseSpeed = 5;
+    let gameSpeed = 5;
+    let gravity = 0.65; // 微調重力，使雙重跳躍感覺更流暢
+    let groundY; 
+    let avoidedCount = 0;
+    let lastPopupTarget = 0; // 記錄上次彈出視窗時避開的數量
+    let obstacles = [];
+    let frameCount = 0;
+    
+    // 玩家物件
+    const player = {
+        x: 50,
+        y: 0,
+        size: 50, // 會根據螢幕縮放
+        vy: 0,
+        jumpPower: -12,
+        jumpCount: 0 // 新增：用來記錄跳躍次數 (0: 地面, 1: 一段跳, 2: 二段跳)
+    };
+
+    // --- 核心輔助函數 ---
+
+    // 處理視窗大小改變
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        // 設定地面高度為螢幕下方 20%
+        groundY = canvas.height * 0.8;
+        // 動態調整玩家大小，適應手機
+        player.size = Math.max(40, Math.min(canvas.width, canvas.height) * 0.12);
+        
+        // 如果玩家在地面，更新其 Y 座標
+        if (player.jumpCount === 0 && gameState !== 'PLAYING') {
+            player.y = groundY - player.size;
+        }
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // 產生隨機陣列元素
+    function getRandomElements(arr, count) {
+        const shuffled = [...arr].sort(() => 0.5 - Math.random());
+        return shuffled.slice(0, count);
+    }
+
+    // 播放跳躍音效 (使用 Web Audio API，帶有雙跳音調變化)
+    function playJumpSound(isDoubleJump = false) {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        
+        osc.type = 'sine';
+        // 雙重跳躍時音調會更高 (400Hz -> 600Hz)，提供更好的聽覺回饋
+        const startFreq = isDoubleJump ? 550 : 380;
+        const endFreq = isDoubleJump ? 900 : 750;
+        
+        osc.frequency.setValueAtTime(startFreq, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(endFreq, audioCtx.currentTime + 0.12);
+        
+        gainNode.gain.setValueAtTime(0.12, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+        
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.12);
+    }
+
+    // --- UI 互動邏輯 ---
+
+    function selectEmoji(emoji) {
+        selectedEmoji = emoji;
+        // 視覺更新按鈕
+        document.querySelectorAll('.emoji-btn').forEach(btn => {
+            if (btn.innerText === emoji) {
+                btn.classList.add('selected');
+                btn.style.borderColor = '#4ade80';
+                btn.style.background = '#dcfce7';
+            } else {
+                btn.classList.remove('selected');
+                btn.style.borderColor = 'transparent';
+                btn.style.background = '#f8fafc';
+            }
+        });
+    }
+
+    // 初始化玩家選擇
+    selectEmoji('🥚');
+
+    function startGame() {
+        document.getElementById('menu-ui').classList.add('hidden');
+        resetGameVariables();
+        gameState = 'PLAYING';
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        
+        gameLoop();
+    }
+
+    function resetGameVariables() {
+        player.y = groundY - player.size;
+        player.vy = 0;
+        player.jumpCount = 0;
+        
+        obstacles = [];
+        avoidedCount = 0;
+        lastPopupTarget = 0;
+        frameCount = 0;
+        baseSpeed = Math.max(5.5, canvas.width * 0.0065); // 根據螢幕寬度決定初始速度
+        gameSpeed = baseSpeed;
+    }
+
+    function triggerPopup() {
+        gameState = 'POPUP';
+        
+        // 準備詞彙：2個 /k-/, 2個 /kh-/, 1個 其他
+        let selectedK = getRandomElements(kWords, 2);
+        let selectedKh = getRandomElements(khWords, 2);
+        let selectedOther = getRandomElements(otherWords, 1);
+        
+        let allTargetWords = [...selectedK, ...selectedKh, ...selectedOther];
+        // 隨機打亂出現順序
+        allTargetWords.sort(() => Math.random() - 0.5);
+        
+        // 繪製到 UI
+        const wordListContainer = document.getElementById('word-list');
+        wordListContainer.innerHTML = '';
+        allTargetWords.forEach(word => {
+            const div = document.createElement('div');
+            div.className = 'word-item';
+            div.innerText = word;
+            wordListContainer.appendChild(div);
+        });
+        
+        document.getElementById('popup-ui').classList.remove('hidden');
+    }
+
+    function startCooldown() {
+        document.getElementById('popup-ui').classList.add('hidden');
+        const cooldownUI = document.getElementById('cooldown-ui');
+        const countdownText = document.getElementById('countdown-text');
+        cooldownUI.classList.remove('hidden');
+        
+        gameState = 'COOLDOWN';
+        let count = 3;
+        countdownText.innerText = count;
+        
+        const interval = setInterval(() => {
+            count--;
+            if (count > 0) {
+                countdownText.innerText = count;
+            } else {
+                clearInterval(interval);
+                cooldownUI.classList.add('hidden');
+                gameState = 'PLAYING';
+                gameLoop(); // 重新啟動遊戲迴圈
+            }
+        }, 1000);
+    }
+
+    function gameOver() {
+        gameState = 'GAMEOVER';
+        document.getElementById('final-score').innerText = avoidedCount;
+        document.getElementById('gameover-ui').classList.remove('hidden');
+    }
+
+    function resetGameToMenu() {
+        document.getElementById('gameover-ui').classList.add('hidden');
+        document.getElementById('menu-ui').classList.remove('hidden');
+        gameState = 'MENU';
+        ctx.clearRect(0, 0, canvas.width, canvas.height); // 清除畫面
+    }
+
+    // --- 遊戲邏輯與繪圖 ---
+
+    function jump() {
+        if (gameState !== 'PLAYING') return;
+        
+        // 雙重跳躍邏輯：跳躍次數小於 2 即可再次起跳
+        if (player.jumpCount < 2) {
+            player.jumpCount++;
+            // 動態計算跳躍力度
+            const baseJumpPower = -(canvas.height * 0.02);
+            
+            if (player.jumpCount === 2) {
+                // 第二跳稍微溫和一點，提供更好的控制感
+                player.vy = baseJumpPower * 0.85;
+                playJumpSound(true); // 播放高音調雙跳音效
+            } else {
+                player.vy = baseJumpPower;
+                playJumpSound(false);
+            }
+        }
+    }
+
+    // 事件監聽 (點擊螢幕、鍵盤空白鍵)
+    window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space' || e.code === 'ArrowUp') jump();
+    });
+    window.addEventListener('touchstart', (e) => {
+        if(gameState === 'PLAYING' || gameState === 'MENU') {
+           if(e.target.tagName !== 'BUTTON') jump(); 
+        }
+    });
+    window.addEventListener('mousedown', (e) => {
+        if(gameState === 'PLAYING') {
+            if(e.target.tagName !== 'BUTTON') jump();
+        }
+    });
+
+    function spawnObstacle() {
+        const obTypes = ['🌵', '🪨', '💣'];
+        const type = obTypes[Math.floor(Math.random() * obTypes.length)];
+        
+        // 隨機障礙物大小與高度（微調，使雙跳更有發揮空間）
+        const sizeMultiplier = 0.7 + Math.random() * 0.4; // 0.7 ~ 1.1 倍大小
+        const size = player.size * sizeMultiplier;
+        
+        obstacles.push({
+            x: canvas.width,
+            y: groundY - size,
+            size: size,
+            emoji: type,
+            passed: false
+        });
+    }
+
+    function checkCollision(player, obstacle) {
+        // 稍微縮小碰撞範圍，對小朋友更友善
+        const hitboxShrink = player.size * 0.25; 
+        
+        return (
+            player.x < obstacle.x + obstacle.size - hitboxShrink &&
+            player.x + player.size - hitboxShrink > obstacle.x &&
+            player.y < obstacle.y + obstacle.size - hitboxShrink &&
+            player.y + player.size - hitboxShrink > obstacle.y
+        );
+    }
+
+    function gameLoop() {
+        if (gameState !== 'PLAYING') return;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // 1. 繪製背景元素 (地面)
+        ctx.beginPath();
+        ctx.moveTo(0, groundY);
+        ctx.lineTo(canvas.width, groundY);
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = '#22c55e'; // Tailwind green-500
+        ctx.stroke();
+
+        // 2. 更新與繪製玩家
+        player.vy += gravity;
+        player.y += player.vy;
+
+        // 著地處理：重設跳躍次數
+        if (player.y >= groundY - player.size) {
+            player.y = groundY - player.size;
+            player.vy = 0;
+            player.jumpCount = 0; // 重置為地面狀態
+        }
+
+        ctx.font = `${player.size}px Arial`;
+        ctx.textBaseline = 'top';
+        
+        // 針對 🐤 進行水平翻轉繪製，使其面向右側（面向障礙物）
+        if (selectedEmoji === '🐤') {
+            ctx.save();
+            ctx.translate(player.x + player.size / 2, player.y);
+            ctx.scale(-1, 1);
+            ctx.textAlign = 'center';
+            ctx.fillText(selectedEmoji, 0, 0);
+            ctx.restore();
+        } else {
+            ctx.fillText(selectedEmoji, player.x, player.y);
+        }
+
+        // 3. 更新與繪製障礙物
+        frameCount++;
+        
+        // 根據目前的遊戲速度動態調整生成頻率，避免障礙物擠在一起
+        const spawnRate = Math.max(50, Math.floor(canvas.width / gameSpeed * 0.75));
+        
+        if (frameCount % spawnRate === 0) {
+            spawnObstacle();
+        }
+
+        for (let i = 0; i < obstacles.length; i++) {
+            let ob = obstacles[i];
+            ob.x -= gameSpeed;
+
+            ctx.font = `${ob.size}px Arial`;
+            ctx.fillText(ob.emoji, ob.x, ob.y);
+
+            // 碰撞檢測
+            if (checkCollision(player, ob)) {
+                gameOver();
+                return; // 終止當前循環
+            }
+
+            // 成功避開檢測
+            if (!ob.passed && ob.x + ob.size < player.x) {
+                ob.passed = true;
+                avoidedCount++;
+                
+                // 【加速機制優化】：
+                // 每次避開障礙物，速度都會微幅增加 0.15。
+                // 此外，每當累積到 4 的倍數（即觸發發音練習後），基礎速度還會額外增加 0.5。
+                gameSpeed = baseSpeed + (avoidedCount * 0.15) + (Math.floor(avoidedCount / 4) * 0.5);
+            }
+        }
+
+        // 清除離開畫面的障礙物
+        obstacles = obstacles.filter(ob => ob.x + ob.size > 0);
+
+        // 4. 繪製分數、速度與避開數量
+        ctx.fillStyle = '#374151'; // Tailwind gray-700
+        ctx.font = `bold ${Math.max(18, canvas.width * 0.025)}px 'Segoe UI'`;
+        
+        // 右上角顯示避開數量
+        ctx.textAlign = 'right';
+        ctx.fillText(`已避開: ${avoidedCount}`, canvas.width - 20, 35);
+        
+        // 左上角顯示目前的難度級別（基於速度）
+        ctx.textAlign = 'left';
+        const speedLevel = Math.min(10, Math.floor((gameSpeed - 5) / 1.5) + 1);
+        ctx.fillStyle = speedLevel > 7 ? '#ef4444' : (speedLevel > 4 ? '#f59e0b' : '#10b981');
+        ctx.fillText(`速度等級: Lvl ${speedLevel}`, 20, 35);
+        ctx.textAlign = 'left'; // 重置
+
+        // 5. 觸發治療詞彙視窗 (每 4 個)
+        if (avoidedCount > 0 && avoidedCount % 4 === 0 && avoidedCount !== lastPopupTarget) {
+            lastPopupTarget = avoidedCount;
+            triggerPopup();
+            return; // 暫停遊戲迴圈
+        }
+
+        animationId = requestAnimationFrame(gameLoop);
+    }
+
+</script>
+</body>
+</html>
